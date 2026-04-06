@@ -5,7 +5,8 @@ import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import { getCurrentUser, signOut } from "@/lib/mock-data/storage";
 import { cn } from "@/lib/utils/cn";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
+import { AppUser } from "@/lib/types";
 
 const navItems = [
   { href: "/" as Route, label: "Home" },
@@ -16,7 +17,30 @@ const navItems = [
 export function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const user = useMemo(() => getCurrentUser(), [pathname]);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isClientReady, setIsClientReady] = useState(false);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsClientReady(true);
+
+    async function loadUser() {
+      const sessionUser = await getCurrentUser().catch(() => null);
+      if (isMounted) {
+        setUser(sessionUser);
+        setIsLoadingUser(false);
+      }
+    }
+
+    void loadUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname]);
+
+  const showAuthenticatedUI = isClientReady && !isLoadingUser && Boolean(user);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/90 backdrop-blur">
@@ -47,33 +71,35 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
-          {user ? (
-            <>
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-medium text-ink">{user.fullName}</p>
-                <p className="text-xs text-muted">{user.email}</p>
-              </div>
+          <div className="hidden min-w-[12rem] text-right sm:block">
+            <p className="text-sm font-medium text-ink">{showAuthenticatedUI ? user?.fullName : "Guest session"}</p>
+            <p className="text-xs text-muted">{showAuthenticatedUI ? user?.email : "Loading account..."}</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {showAuthenticatedUI ? (
               <button
                 className="rounded-full border border-line px-4 py-2 text-sm text-ink transition hover:bg-white"
-                onClick={() => {
-                  signOut();
+                onClick={async () => {
+                  await signOut();
+                  setUser(null);
                   router.push("/auth/sign-in");
                   router.refresh();
                 }}
               >
                 Sign out
               </button>
-            </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Link className="rounded-full px-4 py-2 text-sm text-ink" href="/auth/sign-in">
-                Sign in
-              </Link>
-              <Link className="rounded-full bg-ink px-4 py-2 text-sm text-white" href="/auth/sign-up">
-                Get started
-              </Link>
-            </div>
-          )}
+            ) : (
+              <>
+                <Link className="rounded-full px-4 py-2 text-sm text-ink" href="/auth/sign-in">
+                  Sign in
+                </Link>
+                <Link className="rounded-full bg-ink px-4 py-2 text-sm text-white" href="/auth/sign-up">
+                  Get started
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>

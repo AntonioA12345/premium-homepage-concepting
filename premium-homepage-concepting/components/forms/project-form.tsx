@@ -5,10 +5,10 @@ import { FieldWrapper, TextArea, TextInput } from "@/components/ui/field";
 import { Panel } from "@/components/ui/panel";
 import { HOMEPAGE_SECTION_OPTIONS, STYLE_PRESET_NAMES } from "@/lib/constants";
 import { createProject, getCurrentUser } from "@/lib/mock-data/storage";
-import { HomepageSectionType, ProjectInput, StylePresetName } from "@/lib/types";
+import { AppUser, HomepageSectionType, ProjectInput, StylePresetName } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 const defaultInput: ProjectInput = {
   title: "",
@@ -25,6 +25,26 @@ export function ProjectForm() {
   const [input, setInput] = useState<ProjectInput>(defaultInput);
   const selectedSectionCount = input.desiredSections.length;
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadUser() {
+      const sessionUser = await getCurrentUser().catch(() => null);
+      if (isMounted) {
+        setUser(sessionUser);
+        setIsLoadingUser(false);
+      }
+    }
+
+    void loadUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function toggleSection(section: HomepageSectionType) {
     setInput((current) => ({
@@ -37,7 +57,9 @@ export function ProjectForm() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const user = getCurrentUser();
+    if (isLoadingUser) {
+      return;
+    }
 
     if (!user) {
       router.push("/auth/sign-in");
@@ -46,7 +68,7 @@ export function ProjectForm() {
 
     try {
       setIsSubmitting(true);
-      const project = await createProject(user, input);
+      const project = await createProject(input);
       router.push(`/projects/${project.id}`);
     } finally {
       setIsSubmitting(false);
@@ -175,8 +197,8 @@ export function ProjectForm() {
             Project creation immediately generates the first homepage concept version so the workspace opens with a
             usable preview, scorecard, and export draft.
           </p>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creating project..." : "Create project"}
+          <Button type="submit" disabled={isSubmitting || isLoadingUser}>
+            {isLoadingUser ? "Loading session..." : isSubmitting ? "Creating project..." : "Create project"}
           </Button>
         </div>
       </Panel>

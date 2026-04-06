@@ -3,17 +3,18 @@ import {
   createProjectWithInitialVersion,
   listProjectsForUser
 } from "@/lib/supabase/project-repository";
-import { AppUser, ProjectInput } from "@/lib/types";
+import { ProjectInput } from "@/lib/types";
+import { readSessionUser } from "@/lib/auth/session";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const userId = request.nextUrl.searchParams.get("userId");
+    const user = await readSessionUser();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId." }, { status: 400 });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    const projects = await listProjectsForUser(userId);
+    const projects = await listProjectsForUser(user.id);
     return NextResponse.json(projects);
   } catch (error) {
     return NextResponse.json(
@@ -25,16 +26,20 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, input } = (await request.json()) as {
-      user?: AppUser;
+    const sessionUser = await readSessionUser();
+    const { input } = (await request.json()) as {
       input?: ProjectInput;
     };
 
-    if (!user || !input) {
+    if (!sessionUser) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
+    if (!input) {
       return NextResponse.json({ error: "Missing project payload." }, { status: 400 });
     }
 
-    const project = await createProjectWithInitialVersion(user, input);
+    const project = await createProjectWithInitialVersion(sessionUser, input);
     return NextResponse.json(project);
   } catch (error) {
     return NextResponse.json(

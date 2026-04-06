@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getProjectById,
+  getProjectByIdForUser,
   updateProjectById
 } from "@/lib/supabase/project-repository";
 import { ProjectInput } from "@/lib/types";
+import { readSessionUser } from "@/lib/auth/session";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const sessionUser = await readSessionUser();
+    if (!sessionUser) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const { projectId } = await params;
-    const project = await getProjectById(projectId);
+    const project = await getProjectByIdForUser(projectId, sessionUser.id);
 
     if (!project) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
@@ -31,7 +37,18 @@ export async function PATCH(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const sessionUser = await readSessionUser();
+    if (!sessionUser) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const { projectId } = await params;
+
+    const existingProject = await getProjectByIdForUser(projectId, sessionUser.id);
+    if (!existingProject) {
+      return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    }
+
     const { patch } = (await request.json()) as {
       patch?: Partial<ProjectInput>;
     };

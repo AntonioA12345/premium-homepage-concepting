@@ -13,12 +13,19 @@ export function AuthCard({ mode }: AuthCardProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    signIn(email, fullName);
-    router.push("/dashboard");
-    router.refresh();
+
+    try {
+      setIsSubmitting(true);
+      await signIn(email, fullName);
+      router.push("/dashboard");
+      router.refresh();
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -31,7 +38,7 @@ export function AuthCard({ mode }: AuthCardProps) {
           {mode === "sign-in" ? "Sign in to concept faster." : "Start building premium homepage directions."}
         </h1>
         <p className="mt-3 text-sm leading-6 text-muted">
-          This prototype uses local auth for now, with a Supabase-ready boundary already in place for production wiring.
+          This prototype uses a cookie-backed mock session with Supabase user persistence wired for production auth next.
         </p>
       </div>
 
@@ -61,8 +68,11 @@ export function AuthCard({ mode }: AuthCardProps) {
           />
         </label>
 
-        <button className="w-full rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white transition hover:opacity-90">
-          {mode === "sign-in" ? "Sign in" : "Create account"}
+        <button
+          disabled={isSubmitting}
+          className="w-full rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {isSubmitting ? "Saving session..." : mode === "sign-in" ? "Sign in" : "Create account"}
         </button>
       </form>
 
