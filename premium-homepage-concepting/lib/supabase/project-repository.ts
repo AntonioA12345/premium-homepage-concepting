@@ -87,6 +87,7 @@ async function ensureUser(user: AppUser) {
   }
 }
 
+
 export async function listProjectsForUser(userId: string): Promise<Project[]> {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
@@ -102,19 +103,34 @@ export async function listProjectsForUser(userId: string): Promise<Project[]> {
   return ((data ?? []) as ProjectRow[]).map(mapProject);
 }
 
-export async function getProjectById(projectId: string): Promise<Project | null> {
+async function getProjectRow(projectId: string, userId?: string): Promise<ProjectRow | null> {
   const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
+  const query = supabase
     .from("projects")
     .select("*")
-    .eq("id", projectId)
-    .maybeSingle();
+    .eq("id", projectId);
+
+  if (userId) {
+    query.eq("user_id", userId);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data ? mapProject(data as ProjectRow) : null;
+  return (data as ProjectRow | null) ?? null;
+}
+
+export async function getProjectById(projectId: string): Promise<Project | null> {
+  const row = await getProjectRow(projectId);
+  return row ? mapProject(row) : null;
+}
+
+export async function getProjectByIdForUser(projectId: string, userId: string): Promise<Project | null> {
+  const row = await getProjectRow(projectId, userId);
+  return row ? mapProject(row) : null;
 }
 
 export async function updateProjectById(
@@ -238,6 +254,12 @@ export async function createProjectWithInitialVersion(
   }
 
   return mapProject(updatedProject as ProjectRow);
+}
+
+
+export async function userCanAccessProject(projectId: string, userId: string): Promise<boolean> {
+  const project = await getProjectByIdForUser(projectId, userId);
+  return Boolean(project);
 }
 
 export async function createVersionForProject(

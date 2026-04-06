@@ -25,7 +25,7 @@ create table if not exists projects (
   business_type text not null,
   audience text not null,
   page_goal text not null,
-  style_preset text not null references style_presets(name),
+  style_preset text not null,
   desired_sections jsonb not null default '[]'::jsonb,
   notes text,
   current_version_id uuid,

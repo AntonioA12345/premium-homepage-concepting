@@ -6,36 +6,49 @@ import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentUser, getProjects, getVersions } from "@/lib/mock-data/storage";
-import { Project, Version } from "@/lib/types";
+import { AppUser, Project, Version } from "@/lib/types";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export function ProjectList() {
-  const user = getCurrentUser();
+  const [user, setUser] = useState<AppUser | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [latestVersions, setLatestVersions] = useState<Record<string, Version | null>>({});
-  const [isLoading, setIsLoading] = useState(Boolean(user));
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadProjects() {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
         setIsLoading(true);
-        const nextProjects = await getProjects(user);
+        setLoadError(null);
+
+        const sessionUser = await getCurrentUser();
+
+        if (!sessionUser) {
+          if (!isMounted) return;
+          setUser(null);
+          setProjects([]);
+          setLatestVersions({});
+          return;
+        }
+
+        const nextProjects = await getProjects();
         const versionPairs = await Promise.all(
           nextProjects.map(async (project) => [project.id, (await getVersions(project.id))[0] ?? null] as const)
         );
 
         if (!isMounted) return;
 
+        setUser(sessionUser);
         setProjects(nextProjects);
         setLatestVersions(Object.fromEntries(versionPairs));
+      } catch (error) {
+        if (isMounted) {
+          setLoadError(error instanceof Error ? error.message : "Failed to load dashboard.");
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -48,21 +61,7 @@ export function ProjectList() {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
-
-  if (!user) {
-    return (
-      <EmptyState
-        title="Sign in to start creating concepts."
-        description="The dashboard unlocks project creation, version history, approval flow, and export handoff views."
-        action={
-          <Link href="/auth/sign-in" className={buttonStyles({})}>
-            Go to sign in
-          </Link>
-        }
-      />
-    );
-  }
+  }, []);
 
   if (isLoading) {
     return (
@@ -78,19 +77,48 @@ export function ProjectList() {
     );
   }
 
+
+  if (loadError) {
+    return (
+      <EmptyState
+        title="Could not load dashboard."
+        description={loadError}
+        action={
+          <button className={buttonStyles({})} onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        }
+      />
+    );
+  }
+
+  if (!user) {
+    return (
+      <EmptyState
+        title="Sign in to start creating concepts."
+        description="The dashboard unlocks project creation, version history, approval flow, and export handoff views."
+        action={
+          <Link href="/auth/sign-in" className={buttonStyles({})}>
+            Go to sign in
+          </Link>
+        }
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {projects.length === 0 ? (
         <EmptyState
-        title="No projects yet."
-        description="Create your first service-business homepage concept and the app will open directly into the central workspace experience."
-        action={
-          <Link href="/projects/new" className={buttonStyles({})}>
-            Create first project
-          </Link>
-        }
-      />
-    ) : (
+          title="No projects yet."
+          description="Create your first service-business homepage concept and the app will open directly into the central workspace experience."
+          action={
+            <Link href="/projects/new" className={buttonStyles({})}>
+              Create first project
+            </Link>
+          }
+        />
+      ) : (
         projects.map((project) => {
           const latestVersion = latestVersions[project.id];
 
